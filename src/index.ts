@@ -8,6 +8,10 @@ interface ImageRequest {
   height?: number;
 }
 
+interface ImageResult {
+  image?: string;
+}
+
 const MODEL = "@cf/black-forest-labs/flux-2-klein-9b";
 
 export default {
@@ -38,9 +42,9 @@ export default {
     const width = body.width ?? 1344;
     const height = body.height ?? 768;
 
-    if (width < 256 || width > 2048 || height < 256 || height > 2048) {
+    if (width < 256 || width > 1920 || height < 256 || height > 1920) {
       return Response.json(
-        { error: "Image dimensions must be between 256 and 2048 pixels." },
+        { error: "Image dimensions must be between 256 and 1920 pixels." },
         { status: 400 },
       );
     }
@@ -51,9 +55,21 @@ export default {
       form.append("width", String(width));
       form.append("height", String(height));
 
-      const image = await env.AI.run(MODEL, form);
+      // Serialize FormData so Workers AI receives the multipart boundary.
+      const formResponse = new Response(form);
+      const result = (await env.AI.run(MODEL, {
+        multipart: {
+          body: formResponse.body,
+          contentType: formResponse.headers.get("content-type") ?? "multipart/form-data",
+        },
+      })) as ImageResult;
 
-      return new Response(image as ReadableStream, {
+      if (!result.image) {
+        throw new Error("Workers AI returned no image data.");
+      }
+
+      const binary = Uint8Array.from(atob(result.image), (character) => character.charCodeAt(0));
+      return new Response(binary, {
         headers: {
           "Content-Type": "image/png",
           "Cache-Control": "no-store",
