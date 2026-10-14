@@ -46,11 +46,12 @@ export default {
     }
 
     try {
-      const image = await env.AI.run(MODEL, {
-        prompt: body.prompt,
-        width,
-        height,
-      });
+      const form = new FormData();
+      form.append("prompt", body.prompt);
+      form.append("width", String(width));
+      form.append("height", String(height));
+
+      const image = await env.AI.run(MODEL, form);
 
       return new Response(image as ReadableStream, {
         headers: {
