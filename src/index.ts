@@ -2,17 +2,21 @@ interface Env {
   AI: Ai;
 }
 
-interface RequestBody {
+interface ImageRequest {
   prompt?: string;
-  model?: string;
+  width?: number;
+  height?: number;
 }
+
+const MODEL = "@cf/black-forest-labs/flux-2-klein-9b";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "GET") {
       return Response.json({
         name: "madblogger-ai",
-        usage: "POST {\"prompt\": \"Your question\"}",
+        model: MODEL,
+        usage: "POST {\"prompt\": \"Describe the image to generate\"}",
       });
     }
 
@@ -20,9 +24,9 @@ export default {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
-    let body: RequestBody;
+    let body: ImageRequest;
     try {
-      body = await request.json<RequestBody>();
+      body = await request.json<ImageRequest>();
     } catch {
       return Response.json({ error: "Request body must be valid JSON." }, { status: 400 });
     }
@@ -31,11 +35,37 @@ export default {
       return Response.json({ error: "A non-empty 'prompt' is required." }, { status: 400 });
     }
 
-    const model = body.model ?? "@cf/meta/llama-3.1-8b-instruct-fast";
-    const result = await env.AI.run(model, {
-      messages: [{ role: "user", content: body.prompt }],
-    });
+    const width = body.width ?? 1344;
+    const height = body.height ?? 768;
 
-    return Response.json({ model, result });
+    if (width < 256 || width > 2048 || height < 256 || height > 2048) {
+      return Response.json(
+        { error: "Image dimensions must be between 256 and 2048 pixels." },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const image = await env.AI.run(MODEL, {
+        prompt: body.prompt,
+        width,
+        height,
+      });
+
+      return new Response(image as ReadableStream, {
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "no-store",
+        },
+      });
+    } catch (error) {
+      return Response.json(
+        {
+          error: "Image generation failed.",
+          details: error instanceof Error ? error.message : String(error),
+        },
+        { status: 502 },
+      );
+    }
   },
 };
