@@ -13,12 +13,14 @@ interface ImageResult {
 }
 
 const MODEL = "@cf/black-forest-labs/flux-2-klein-9b";
+const VERSION = "multipart-v4";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "GET") {
       return Response.json({
         name: "madblogger-ai",
+        version: VERSION,
         model: MODEL,
         usage: "POST {\"prompt\": \"Describe the image to generate\"}",
       });
